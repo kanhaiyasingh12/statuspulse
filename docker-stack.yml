@@ -1,0 +1,112 @@
+version: "3.8"
+
+services:
+  app:
+    image: ${STATUSPULSE_IMAGE}
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    ports:
+      - target: 8000
+        published: 8000
+        protocol: tcp
+        mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: stop-first
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - statuspulse-net
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - statuspulse-net
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - statuspulse-net
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    ports:
+      - target: 3001
+        published: 3001
+        protocol: tcp
+        mode: host
+    volumes:
+      - uptime-kuma-data:/app/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - statuspulse-net
+
+volumes:
+  postgres-data:
+  redis-data:
+  uptime-kuma-data:
+
+networks:
+  statuspulse-net:
+    driver: overlay
+    attachable: true

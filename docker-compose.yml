@@ -1,0 +1,66 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: statuspulse:local
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 256m
+    restart: unless-stopped
+    networks:
+      - statuspulse-net
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-statuspulse}
+      POSTGRES_USER: ${DB_USER:-statuspulse}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    networks:
+      - statuspulse-net
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 128m
+    restart: unless-stopped
+    networks:
+      - statuspulse-net
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  statuspulse-net:
+    driver: bridge

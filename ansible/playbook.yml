@@ -1,0 +1,243 @@
+- name: Configure StatusPulse server
+  hosts: statuspulse
+  become: true
+  vars_files:
+    - vars.yml
+
+  handlers:
+    - name: restart ssh
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - ufw
+          - unattended-upgrades
+          - python3
+          - python3-pip
+          - openssl
+          - nginx
+          - certbot
+        state: present
+        update_cache: true
+
+    - name: Install Docker convenience script
+      ansible.builtin.shell: curl -fsSL https://get.docker.com | sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Create deploy user
+      ansible.builtin.user:
+        name: "{{ deploy_user }}"
+        groups: docker
+        append: true
+        shell: /bin/bash
+        create_home: true
+
+    - name: Harden sshd config
+      ansible.builtin.blockinfile:
+        path: /etc/ssh/sshd_config
+        marker: "# {mark} STATUSPULSE HARDENING"
+        block: |
+          Port {{ deploy_ssh_port }}
+          PermitRootLogin no
+          PasswordAuthentication no
+          PubkeyAuthentication yes
+      notify: restart ssh
+
+    - name: Configure UFW defaults
+      community.general.ufw:
+        direction: "{{ item.direction }}"
+        policy: "{{ item.policy }}"
+      loop:
+        - { direction: incoming, policy: deny }
+        - { direction: outgoing, policy: allow }
+
+    - name: Allow required ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "{{ deploy_ssh_port }}"
+        - "80"
+        - "443"
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+
+    - name: Enable unattended security upgrades
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        mode: "0644"
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+
+    - name: Check swap file
+      ansible.builtin.stat:
+        path: "{{ swap_file }}"
+      register: swap_stat
+
+    - name: Create swap file
+      ansible.builtin.command: "fallocate -l {{ swap_size_mb }}M {{ swap_file }}"
+      when: not swap_stat.stat.exists
+
+    - name: Set swap permissions
+      ansible.builtin.file:
+        path: "{{ swap_file }}"
+        mode: "0600"
+
+    - name: Format swap
+      ansible.builtin.command: "mkswap {{ swap_file }}"
+      when: not swap_stat.stat.exists
+
+    - name: Enable swap
+      ansible.builtin.command: "swapon {{ swap_file }}"
+      when: not swap_stat.stat.exists
+
+    - name: Persist swap
+      ansible.builtin.mount:
+        name: none
+        src: "{{ swap_file }}"
+        fstype: swap
+        opts: sw
+        passno: "0"
+        dump: "0"
+        state: present
+
+    - name: Create app directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0755"
+      loop:
+        - "{{ app_dir }}"
+        - "{{ app_dir }}/nginx"
+        - "{{ app_dir }}/scripts"
+        - "{{ app_dir }}/backups"
+        - /var/www/certbot
+
+    - name: Copy Docker Swarm stack file
+      ansible.builtin.copy:
+        src: ../docker-stack.yml
+        dest: "{{ app_dir }}/docker-stack.yml"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0644"
+
+    - name: Copy nginx configs
+      ansible.builtin.copy:
+        src: "../nginx/{{ item }}"
+        dest: "{{ app_dir }}/nginx/{{ item }}"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0644"
+      loop:
+        - statuspulse.http.conf
+        - statuspulse.https.conf
+
+    - name: Copy scripts
+      ansible.builtin.copy:
+        src: "../scripts/{{ item }}"
+        dest: "{{ app_dir }}/scripts/{{ item }}"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0755"
+      loop:
+        - deploy.sh
+        - deploy-swarm.sh
+        - backup.sh
+        - health-monitor.sh
+        - bootstrap-certbot.sh
+
+    - name: Write production environment
+      ansible.builtin.copy:
+        dest: "{{ app_dir }}/.env"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0600"
+        content: |
+          STATUSPULSE_IMAGE={{ statuspulse_image }}
+          DB_HOST=postgres
+          DB_PORT=5432
+          DB_NAME={{ db_name }}
+          DB_USER={{ db_user }}
+          DB_PASSWORD={{ db_password }}
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          REDIS_PASSWORD=
+          APP_PORT={{ app_port }}
+          DOMAIN={{ domain }}
+          ACME_EMAIL={{ acme_email }}
+          ALERT_WEBHOOK_URL={{ alert_webhook_url }}
+          SLACK_WEBHOOK_URL={{ slack_webhook_url }}
+
+    - name: Initialize Docker Swarm
+      ansible.builtin.command:
+        cmd: docker swarm init
+      register: swarm_init
+      failed_when: swarm_init.rc != 0 and 'This node is already part of a swarm' not in swarm_init.stderr
+      changed_when: "'Swarm initialized' in swarm_init.stdout"
+
+    - name: Deploy Swarm stack
+      ansible.builtin.shell:
+        cmd: |
+          set -a
+          . ./.env
+          set +a
+          docker stack deploy --with-registry-auth -c docker-stack.yml statuspulse
+        chdir: "{{ app_dir }}"
+      changed_when: false
+
+    - name: Install temporary HTTP nginx config
+      ansible.builtin.shell:
+        cmd: |
+          sed "s/DOMAIN_PLACEHOLDER/{{ domain }}/g" {{ app_dir }}/nginx/statuspulse.http.conf > /etc/nginx/sites-available/statuspulse
+          ln -sf /etc/nginx/sites-available/statuspulse /etc/nginx/sites-enabled/statuspulse
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t
+          systemctl reload nginx
+      changed_when: false
+
+    - name: Check certificate
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+      register: cert_stat
+
+    - name: Issue Let's Encrypt certificate
+      ansible.builtin.command:
+        cmd: "certbot certonly --webroot -w /var/www/certbot -d {{ domain }} --email {{ acme_email }} --agree-tos --non-interactive"
+      when: not cert_stat.stat.exists
+
+    - name: Install HTTPS nginx config
+      ansible.builtin.shell:
+        cmd: |
+          sed "s/DOMAIN_PLACEHOLDER/{{ domain }}/g" {{ app_dir }}/nginx/statuspulse.https.conf > /etc/nginx/sites-available/statuspulse
+          nginx -t
+          systemctl reload nginx
+      changed_when: false
+
+    - name: Install health monitor cron
+      ansible.builtin.cron:
+        name: statuspulse health monitor
+        user: root
+        minute: "*/5"
+        job: "DOMAIN={{ domain }} ALERT_WEBHOOK_URL='{{ alert_webhook_url }}' {{ app_dir }}/scripts/health-monitor.sh"
+
+    - name: Install daily backup cron
+      ansible.builtin.cron:
+        name: statuspulse database backup
+        user: root
+        minute: "15"
+        hour: "2"
+        job: "APP_DIR={{ app_dir }} {{ app_dir }}/scripts/backup.sh"

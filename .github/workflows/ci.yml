@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint Python
+        run: ruff check app
+
+      - name: Scan Dockerfile with hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      - name: Prepare environment
+        run: cp .env.example .env
+
+      - name: Build image
+        run: docker build -t statuspulse:${{ github.sha }} .
+
+      - name: Start stack
+        run: docker compose up -d
+
+      - name: Wait for app health
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8000/health; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose ps
+          docker compose logs
+          exit 1
+
+      - name: Run integration tests
+        run: |
+          mkdir -p test-results
+          bash tests/test_integration.sh | tee test-results/integration.txt
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: test-results/
