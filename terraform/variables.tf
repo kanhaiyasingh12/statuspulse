@@ -13,7 +13,7 @@ variable "project_name" {
 variable "instance_type" {
   description = "EC2 instance type. t2.micro/t3.micro are typical free-tier choices where eligible."
   type        = string
-  default     = "t2.micro"
+  default     = "t3.medium"
 }
 
 variable "key_name" {
