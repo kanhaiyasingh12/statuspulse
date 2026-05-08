@@ -100,6 +100,10 @@ jobs:
           db_name: ${{ secrets.DB_NAME || 'statuspulse' }}
           db_user: ${{ secrets.DB_USER || 'statuspulse' }}
           db_password: ${{ secrets.DB_PASSWORD }}
+          mysql_database: ${{ secrets.MYSQL_DATABASE || 'statuspulse' }}
+          mysql_user: ${{ secrets.MYSQL_USER || 'statuspulse' }}
+          mysql_password: ${{ secrets.MYSQL_PASSWORD }}
+          mysql_root_password: ${{ secrets.MYSQL_ROOT_PASSWORD }}
           app_port: 8000
           alert_webhook_url: "${{ secrets.ALERT_WEBHOOK_URL }}"
           slack_webhook_url: "${{ secrets.SLACK_WEBHOOK_URL }}"

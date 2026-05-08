@@ -1,6 +1,6 @@
 # StatusPulse Ansible
 
-This playbook configures a fresh Ubuntu EC2 VM for StatusPulse using Docker Swarm, Nginx, Certbot, and Slack-compatible webhook alerts.
+This playbook configures a fresh Ubuntu EC2 VM for StatusPulse using Docker Swarm, PostgreSQL, MySQL, Redis, Nginx, Certbot, Uptime Kuma, and Slack-compatible webhook alerts.
 
 ## Usage
 
@@ -24,9 +24,18 @@ This playbook configures a fresh Ubuntu EC2 VM for StatusPulse using Docker Swar
    ansible-playbook -i inventory.ini playbook.yml
    ```
 
-5. Run it a second time and capture the summary for idempotency proof. Most tasks should report no changes after the first successful run.
+5. Run it a second time and capture the summary for idempotency proof. After the first successful run, the playbook should report no changes unless files, variables, certificates, firewall rules, cron jobs, or service state changed.
 
 Before running Certbot, create a GoDaddy `A` record pointing your domain or subdomain to the EC2 public IP.
+
+The playbook performs:
+
+- Docker and Compose installation
+- SSH hardening, UFW firewall rules, swap, and unattended upgrades
+- Docker Swarm initialization
+- StatusPulse, PostgreSQL, MySQL, Redis, and Uptime Kuma stack deployment
+- Nginx reverse proxy and Let's Encrypt TLS setup through `scripts/bootstrap-certbot.sh`
+- Health monitor and database backup cron jobs
 
 ## GitHub Actions
 
@@ -47,6 +56,10 @@ STATUSPULSE_IMAGE
 DB_NAME
 DB_USER
 DB_PASSWORD
+MYSQL_DATABASE
+MYSQL_USER
+MYSQL_PASSWORD
+MYSQL_ROOT_PASSWORD
 ALERT_WEBHOOK_URL
 SLACK_WEBHOOK_URL
 ```

@@ -10,6 +10,11 @@
         name: ssh
         state: restarted
 
+    - name: reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
   tasks:
     - name: Install base packages
       ansible.builtin.apt:
@@ -26,11 +31,18 @@
           - certbot
         state: present
         update_cache: true
+        cache_valid_time: 86400
 
-    - name: Install Docker convenience script
+    - name: Install Docker and Compose plugin
       ansible.builtin.shell: curl -fsSL https://get.docker.com | sh
       args:
         creates: /usr/bin/docker
+
+    - name: Ensure Docker service is enabled
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
 
     - name: Create deploy user
       ansible.builtin.user:
@@ -99,9 +111,14 @@
       ansible.builtin.command: "mkswap {{ swap_file }}"
       when: not swap_stat.stat.exists
 
+    - name: Check active swap
+      ansible.builtin.command: swapon --show=NAME --noheadings
+      register: active_swap
+      changed_when: false
+
     - name: Enable swap
       ansible.builtin.command: "swapon {{ swap_file }}"
-      when: not swap_stat.stat.exists
+      when: swap_file not in active_swap.stdout_lines
 
     - name: Persist swap
       ansible.builtin.mount:
@@ -146,7 +163,7 @@
         - statuspulse.http.conf
         - statuspulse.https.conf
 
-    - name: Copy scripts
+    - name: Copy deployment scripts
       ansible.builtin.copy:
         src: "../scripts/{{ item }}"
         dest: "{{ app_dir }}/scripts/{{ item }}"
@@ -176,20 +193,26 @@
           REDIS_HOST=redis
           REDIS_PORT=6379
           REDIS_PASSWORD=
+          MYSQL_DATABASE={{ mysql_database }}
+          MYSQL_USER={{ mysql_user }}
+          MYSQL_PASSWORD={{ mysql_password }}
+          MYSQL_ROOT_PASSWORD={{ mysql_root_password }}
           APP_PORT={{ app_port }}
           DOMAIN={{ domain }}
           ACME_EMAIL={{ acme_email }}
           ALERT_WEBHOOK_URL={{ alert_webhook_url }}
           SLACK_WEBHOOK_URL={{ slack_webhook_url }}
 
-    - name: Initialize Docker Swarm
-      ansible.builtin.command:
-        cmd: docker swarm init
-      register: swarm_init
-      failed_when: swarm_init.rc != 0 and 'This node is already part of a swarm' not in swarm_init.stderr
-      changed_when: "'Swarm initialized' in swarm_init.stdout"
+    - name: Check Docker Swarm state
+      ansible.builtin.command: docker info --format '{{ "{{.Swarm.LocalNodeState}}" }}'
+      register: swarm_state
+      changed_when: false
 
-    - name: Deploy Swarm stack
+    - name: Initialize Docker Swarm
+      ansible.builtin.command: docker swarm init
+      when: swarm_state.stdout != "active"
+
+    - name: Deploy StatusPulse, PostgreSQL, MySQL, Redis, and Uptime Kuma stack
       ansible.builtin.shell:
         cmd: |
           set -a
@@ -199,33 +222,50 @@
         chdir: "{{ app_dir }}"
       changed_when: false
 
-    - name: Install temporary HTTP nginx config
-      ansible.builtin.shell:
-        cmd: |
-          sed "s/DOMAIN_PLACEHOLDER/{{ domain }}/g" {{ app_dir }}/nginx/statuspulse.http.conf > /etc/nginx/sites-available/statuspulse
-          ln -sf /etc/nginx/sites-available/statuspulse /etc/nginx/sites-enabled/statuspulse
-          rm -f /etc/nginx/sites-enabled/default
-          nginx -t
-          systemctl reload nginx
-      changed_when: false
-
     - name: Check certificate
       ansible.builtin.stat:
         path: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
       register: cert_stat
 
-    - name: Issue Let's Encrypt certificate
-      ansible.builtin.command:
-        cmd: "certbot certonly --webroot -w /var/www/certbot -d {{ domain }} --email {{ acme_email }} --agree-tos --non-interactive"
+    - name: Install HTTP reverse proxy config
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/statuspulse
+        mode: "0644"
+        content: "{{ lookup('file', '../nginx/statuspulse.http.conf') | replace('DOMAIN_PLACEHOLDER', domain) }}"
+      notify: reload nginx
       when: not cert_stat.stat.exists
 
-    - name: Install HTTPS nginx config
-      ansible.builtin.shell:
-        cmd: |
-          sed "s/DOMAIN_PLACEHOLDER/{{ domain }}/g" {{ app_dir }}/nginx/statuspulse.https.conf > /etc/nginx/sites-available/statuspulse
-          nginx -t
-          systemctl reload nginx
-      changed_when: false
+    - name: Enable StatusPulse reverse proxy site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/statuspulse
+        dest: /etc/nginx/sites-enabled/statuspulse
+        state: link
+      notify: reload nginx
+
+    - name: Disable default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: reload nginx
+
+    - name: Flush nginx changes before certificate request
+      ansible.builtin.meta: flush_handlers
+
+    - name: Issue Let's Encrypt certificate through script
+      ansible.builtin.command:
+        cmd: "{{ app_dir }}/scripts/bootstrap-certbot.sh"
+      environment:
+        DOMAIN: "{{ domain }}"
+        ACME_EMAIL: "{{ acme_email }}"
+        APP_DIR: "{{ app_dir }}"
+      when: not cert_stat.stat.exists
+
+    - name: Install HTTPS reverse proxy config
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/statuspulse
+        mode: "0644"
+        content: "{{ lookup('file', '../nginx/statuspulse.https.conf') | replace('DOMAIN_PLACEHOLDER', domain) }}"
+      notify: reload nginx
 
     - name: Install health monitor cron
       ansible.builtin.cron:

@@ -12,17 +12,22 @@ if [ -z "$DOMAIN" ] || [ -z "$ACME_EMAIL" ]; then
   exit 2
 fi
 
+mkdir -p /var/www/certbot
+
 sed "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$APP_DIR/nginx/statuspulse.http.conf" > "$NGINX_AVAILABLE"
 ln -sf "$NGINX_AVAILABLE" "$NGINX_ENABLED"
+rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
-certbot certonly --webroot \
-  -w /var/www/certbot \
-  -d "$DOMAIN" \
-  --email "$ACME_EMAIL" \
-  --agree-tos \
-  --non-interactive
+if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+  certbot certonly --webroot \
+    -w /var/www/certbot \
+    -d "$DOMAIN" \
+    --email "$ACME_EMAIL" \
+    --agree-tos \
+    --non-interactive
+fi
 
 sed "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$APP_DIR/nginx/statuspulse.https.conf" > "$NGINX_AVAILABLE"
 nginx -t

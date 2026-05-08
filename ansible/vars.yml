@@ -7,6 +7,10 @@ statuspulse_image: ghcr.io/OWNER/REPO:latest
 db_name: statuspulse
 db_user: statuspulse
 db_password: change-me
+mysql_database: statuspulse
+mysql_user: statuspulse
+mysql_password: change-me
+mysql_root_password: change-root-me
 app_port: 8000
 alert_webhook_url: ""
 slack_webhook_url: ""

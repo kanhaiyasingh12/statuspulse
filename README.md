@@ -114,6 +114,10 @@ STATUSPULSE_IMAGE
 DB_NAME
 DB_USER
 DB_PASSWORD
+MYSQL_DATABASE
+MYSQL_USER
+MYSQL_PASSWORD
+MYSQL_ROOT_PASSWORD
 ALERT_WEBHOOK_URL
 SLACK_WEBHOOK_URL
 ```
@@ -144,7 +148,7 @@ ansible-galaxy collection install community.general
 ansible-playbook -i inventory.ini playbook.yml
 ```
 
-The playbook installs Docker, initializes single-node Docker Swarm, configures SSH hardening, UFW, swap, unattended upgrades, Nginx, Certbot, StatusPulse, Uptime Kuma, health monitoring, and backup cron jobs.
+The playbook installs Docker and Compose, initializes single-node Docker Swarm, configures SSH hardening, UFW, swap, unattended upgrades, Nginx, Certbot, StatusPulse, PostgreSQL, MySQL, Redis, Uptime Kuma, health monitoring, and backup cron jobs.
 
 After deployment:
 
