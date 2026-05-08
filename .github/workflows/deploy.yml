@@ -38,6 +38,28 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
+      - name: Prepare remote release directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script: |
+            set -e
+            rm -rf /tmp/statuspulse-release
+            mkdir -p /tmp/statuspulse-release
+
+      - name: Copy deployment assets
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          source: "docker-stack.yml,nginx,scripts"
+          target: /tmp/statuspulse-release
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -47,6 +69,12 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT }}
           script: |
             set -e
+            sudo mkdir -p /opt/statuspulse/nginx /opt/statuspulse/scripts
+            sudo cp /tmp/statuspulse-release/docker-stack.yml /opt/statuspulse/docker-stack.yml
+            sudo cp -r /tmp/statuspulse-release/nginx/. /opt/statuspulse/nginx/
+            sudo cp -r /tmp/statuspulse-release/scripts/. /opt/statuspulse/scripts/
+            sudo chmod +x /opt/statuspulse/scripts/*.sh
+            sudo chown -R "${USER}:${USER}" /opt/statuspulse
             export IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
             export HEALTH_URL="${{ secrets.HEALTH_URL }}"
             /opt/statuspulse/scripts/deploy-swarm.sh "$IMAGE"
