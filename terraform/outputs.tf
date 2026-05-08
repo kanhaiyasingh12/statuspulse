@@ -9,6 +9,11 @@ output "server_public_dns" {
 }
 
 output "ssh_command" {
-  description = "SSH command using the configured custom port after Ansible hardening."
+  description = "SSH command using the bootstrap SSH port."
   value       = "ssh -p ${var.ssh_port} ubuntu@${aws_instance.statuspulse.public_ip}"
+}
+
+output "hardened_ssh_command" {
+  description = "SSH command using the Ansible hardened SSH port."
+  value       = "ssh -p ${var.hardened_ssh_port} ubuntu@${aws_instance.statuspulse.public_ip}"
 }

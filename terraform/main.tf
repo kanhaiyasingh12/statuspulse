@@ -33,9 +33,17 @@ resource "aws_security_group" "statuspulse" {
   description = "StatusPulse EC2 firewall"
 
   ingress {
-    description = "Custom SSH"
+    description = "Bootstrap SSH"
     from_port   = var.ssh_port
     to_port     = var.ssh_port
+    protocol    = "tcp"
+    cidr_blocks = var.allowed_ssh_cidrs
+  }
+
+  ingress {
+    description = "Ansible hardened SSH"
+    from_port   = var.hardened_ssh_port
+    to_port     = var.hardened_ssh_port
     protocol    = "tcp"
     cidr_blocks = var.allowed_ssh_cidrs
   }

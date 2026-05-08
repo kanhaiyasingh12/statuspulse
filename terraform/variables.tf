@@ -22,9 +22,15 @@ variable "key_name" {
 }
 
 variable "ssh_port" {
-  description = "Custom SSH port configured by Ansible."
+  description = "Bootstrap SSH port used before Ansible hardening."
   type        = number
   default     = 22
+}
+
+variable "hardened_ssh_port" {
+  description = "SSH port used after Ansible hardening."
+  type        = number
+  default     = 2222
 }
 
 variable "allowed_ssh_cidrs" {
