@@ -1,5 +1,5 @@
 deploy_user: deploy
-deploy_ssh_port: 2222
+deploy_ssh_port: 22
 app_dir: /opt/statuspulse
 domain: example.com
 acme_email: admin@example.com

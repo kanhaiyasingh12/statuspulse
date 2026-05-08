@@ -88,11 +88,15 @@ jobs:
           statuspulse-vm ansible_host=${{ secrets.ANSIBLE_HOST }} ansible_user=${{ secrets.ANSIBLE_USER }} ansible_port=${{ secrets.ANSIBLE_PORT || '22' }} ansible_ssh_private_key_file=~/.ssh/statuspulse
           EOF
 
+      - name: Check SSH connectivity
+        run: |
+          ansible statuspulse -i inventory.ini -m ansible.builtin.ping -vv
+
       - name: Write production vars
         run: |
           cat > vars.yml <<EOF
           deploy_user: ${{ secrets.ANSIBLE_DEPLOY_USER || 'deploy' }}
-          deploy_ssh_port: ${{ secrets.ANSIBLE_DEPLOY_SSH_PORT || '2222' }}
+          deploy_ssh_port: ${{ secrets.ANSIBLE_DEPLOY_SSH_PORT || '22' }}
           app_dir: /opt/statuspulse
           domain: ${{ secrets.STATUSPULSE_DOMAIN }}
           acme_email: ${{ secrets.ACME_EMAIL }}

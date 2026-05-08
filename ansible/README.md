@@ -12,6 +12,10 @@ This playbook configures a fresh Ubuntu EC2 VM for StatusPulse using Docker Swar
 
 2. Edit `inventory.ini` and `vars.yml`.
 
+   Use the EC2 public IP for `ansible_host` when running from GitHub Actions or any machine outside the VPC. The private IP only works from inside the same VPC, a VPN, or a bastion host.
+
+   Keep `ansible_port` aligned with `deploy_ssh_port` in `vars.yml`. The default is `22` so the playbook can run through the existing EC2 SSH rule. If you change `deploy_ssh_port`, open that port in the EC2 security group before the next run.
+
 3. Install the required collection:
 
    ```bash
