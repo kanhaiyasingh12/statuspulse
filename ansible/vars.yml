@@ -6,13 +6,12 @@ acme_email: admin@example.com
 statuspulse_image: ghcr.io/OWNER/REPO:latest
 db_name: statuspulse
 db_user: statuspulse
-db_password: change-me
+db_password: Redhat
 mysql_database: statuspulse
 mysql_user: statuspulse
-mysql_password: change-me
-mysql_root_password: change-root-me
+mysql_password: mysql
+mysql_root_password: Redhat
 app_port: 8000
-alert_webhook_url: ""
 slack_webhook_url: ""
 swap_file: /swapfile
 swap_size_mb: 1024
