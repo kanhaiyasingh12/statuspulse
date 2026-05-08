@@ -27,3 +27,26 @@ This playbook configures a fresh Ubuntu EC2 VM for StatusPulse using Docker Swar
 5. Run it a second time and capture the summary for idempotency proof. Most tasks should report no changes after the first successful run.
 
 Before running Certbot, create a GoDaddy `A` record pointing your domain or subdomain to the EC2 public IP.
+
+## GitHub Actions
+
+`.github/workflows/ansible.yml` runs a syntax check and minimal `ansible-lint` validation when Ansible, Nginx, stack, script, or workflow files change.
+
+To run the playbook from GitHub Actions, start the `Ansible` workflow manually and set `apply` to `true`. Configure these repository secrets first:
+
+```text
+ANSIBLE_HOST
+ANSIBLE_USER
+ANSIBLE_SSH_KEY
+ANSIBLE_PORT
+ANSIBLE_DEPLOY_USER
+ANSIBLE_DEPLOY_SSH_PORT
+STATUSPULSE_DOMAIN
+ACME_EMAIL
+STATUSPULSE_IMAGE
+DB_NAME
+DB_USER
+DB_PASSWORD
+ALERT_WEBHOOK_URL
+SLACK_WEBHOOK_URL
+```

@@ -1,0 +1,111 @@
+name: Ansible
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Run the StatusPulse Ansible playbook against the server"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  ANSIBLE_FORCE_COLOR: "true"
+  ANSIBLE_HOST_KEY_CHECKING: "false"
+
+jobs:
+  validate:
+    name: Validate Ansible
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ansible
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible ansible-lint
+
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install community.general
+
+      - name: Ansible lint
+        run: ansible-lint --profile min playbook.yml
+
+      - name: Ansible syntax check
+        run: ansible-playbook -i inventory.example.ini playbook.yml --syntax-check
+
+  apply:
+    name: Apply Ansible
+    needs: validate
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.apply == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ansible
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install community.general
+
+      - name: Write SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.ANSIBLE_SSH_KEY }}" > ~/.ssh/statuspulse
+          chmod 600 ~/.ssh/statuspulse
+
+      - name: Write inventory
+        run: |
+          cat > inventory.ini <<EOF
+          [statuspulse]
+          statuspulse-vm ansible_host=${{ secrets.ANSIBLE_HOST }} ansible_user=${{ secrets.ANSIBLE_USER }} ansible_port=${{ secrets.ANSIBLE_PORT || '22' }} ansible_ssh_private_key_file=~/.ssh/statuspulse
+          EOF
+
+      - name: Write production vars
+        run: |
+          cat > vars.yml <<EOF
+          deploy_user: ${{ secrets.ANSIBLE_DEPLOY_USER || 'deploy' }}
+          deploy_ssh_port: ${{ secrets.ANSIBLE_DEPLOY_SSH_PORT || '2222' }}
+          app_dir: /opt/statuspulse
+          domain: ${{ secrets.STATUSPULSE_DOMAIN }}
+          acme_email: ${{ secrets.ACME_EMAIL }}
+          statuspulse_image: ${{ secrets.STATUSPULSE_IMAGE }}
+          db_name: ${{ secrets.DB_NAME || 'statuspulse' }}
+          db_user: ${{ secrets.DB_USER || 'statuspulse' }}
+          db_password: ${{ secrets.DB_PASSWORD }}
+          app_port: 8000
+          alert_webhook_url: "${{ secrets.ALERT_WEBHOOK_URL }}"
+          slack_webhook_url: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          swap_file: /swapfile
+          swap_size_mb: 1024
+          EOF
+
+      - name: Run playbook
+        run: ansible-playbook -i inventory.ini playbook.yml

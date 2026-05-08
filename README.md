@@ -85,6 +85,9 @@ It performs:
 - Run health check and rollback through the deploy script
 - Send Slack notification when `SLACK_WEBHOOK_URL` is configured
 
+`.github/workflows/ansible.yml` validates the Ansible playbook on pull requests and pushes that touch deployment files.
+It can also be run manually with `apply=true` to configure the server from GitHub Actions.
+
 Required GitHub Actions secrets:
 
 ```text
@@ -93,6 +96,25 @@ DEPLOY_USER
 DEPLOY_SSH_KEY
 DEPLOY_PORT
 HEALTH_URL
+SLACK_WEBHOOK_URL
+```
+
+Required secrets for the manual Ansible workflow:
+
+```text
+ANSIBLE_HOST
+ANSIBLE_USER
+ANSIBLE_SSH_KEY
+ANSIBLE_PORT
+ANSIBLE_DEPLOY_USER
+ANSIBLE_DEPLOY_SSH_PORT
+STATUSPULSE_DOMAIN
+ACME_EMAIL
+STATUSPULSE_IMAGE
+DB_NAME
+DB_USER
+DB_PASSWORD
+ALERT_WEBHOOK_URL
 SLACK_WEBHOOK_URL
 ```
 
