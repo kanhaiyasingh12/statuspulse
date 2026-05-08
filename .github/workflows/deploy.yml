@@ -75,6 +75,27 @@ jobs:
             sudo cp -r /tmp/statuspulse-release/scripts/. /opt/statuspulse/scripts/
             sudo chmod +x /opt/statuspulse/scripts/*.sh
             sudo chown -R "${USER}:${USER}" /opt/statuspulse
+            if ! command -v docker >/dev/null 2>&1; then
+              if ! command -v curl >/dev/null 2>&1; then
+                sudo apt-get update
+                sudo apt-get install -y ca-certificates curl
+              fi
+              curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+              sudo sh /tmp/get-docker.sh
+            fi
+            sudo systemctl enable --now docker
+            sudo touch /var/log/statuspulse-deploy.log
+            sudo chown "${USER}:${USER}" /var/log/statuspulse-deploy.log
+            sudo chmod 664 /var/log/statuspulse-deploy.log
+            if docker info >/dev/null 2>&1; then
+              export DOCKER_BIN="docker"
+            else
+              export DOCKER_BIN="sudo docker"
+            fi
+            if [ ! -f /opt/statuspulse/.env ]; then
+              echo "/opt/statuspulse/.env is missing. Run the Ansible workflow first so production variables are created."
+              exit 1
+            fi
             export IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
             export HEALTH_URL="${{ secrets.HEALTH_URL }}"
             /opt/statuspulse/scripts/deploy-swarm.sh "$IMAGE"

@@ -8,6 +8,12 @@ STACK_FILE="${STACK_FILE:-$APP_DIR/docker-stack.yml}"
 STACK_NAME="${STACK_NAME:-statuspulse}"
 HEALTH_URL="${HEALTH_URL:-https://${DOMAIN:-localhost}/health}"
 LOG_FILE="${DEPLOY_LOG_FILE:-/var/log/statuspulse-deploy.log}"
+DOCKER_BIN="${DOCKER_BIN:-docker}"
+
+if ! touch "$LOG_FILE" >/dev/null 2>&1; then
+  LOG_FILE="$APP_DIR/statuspulse-deploy.log"
+  touch "$LOG_FILE"
+fi
 
 log() {
   printf '%s %s\n' "$(date -Iseconds)" "$*" | tee -a "$LOG_FILE"
@@ -20,14 +26,19 @@ fi
 
 cd "$APP_DIR"
 
+if ! command -v "${DOCKER_BIN%% *}" >/dev/null 2>&1; then
+  log "Docker command not found: ${DOCKER_BIN%% *}"
+  exit 1
+fi
+
 previous_image=""
 if [ -f "$ENV_FILE" ]; then
   previous_image="$(grep -E '^STATUSPULSE_IMAGE=' "$ENV_FILE" | cut -d= -f2- || true)"
 fi
 
-if ! docker info --format '{{.Swarm.LocalNodeState}}' | grep -q active; then
+if ! $DOCKER_BIN info --format '{{.Swarm.LocalNodeState}}' | grep -q active; then
   log "Initializing single-node Docker Swarm"
-  docker swarm init
+  $DOCKER_BIN swarm init
 fi
 
 wait_for_health() {
@@ -51,7 +62,7 @@ deploy_image() {
   set -a
   . "$ENV_FILE"
   set +a
-  docker stack deploy --with-registry-auth -c "$STACK_FILE" "$STACK_NAME"
+  $DOCKER_BIN stack deploy --with-registry-auth -c "$STACK_FILE" "$STACK_NAME"
 }
 
 rollback() {
@@ -65,7 +76,7 @@ rollback() {
 }
 
 log "Pulling $IMAGE"
-docker pull "$IMAGE"
+$DOCKER_BIN pull "$IMAGE"
 
 log "Deploying $IMAGE to stack $STACK_NAME"
 deploy_image "$IMAGE"
