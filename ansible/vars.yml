@@ -12,7 +12,6 @@ mysql_user: statuspulse
 mysql_password: mysql
 mysql_root_password: Redhat
 app_port: 8000
-alert_webhook_url: ""
 slack_webhook_url: ""
 swap_file: /swapfile
 swap_size_mb: 1024
