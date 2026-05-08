@@ -121,6 +121,7 @@ jobs:
             fi
             export IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
             export HEALTH_URL="${{ secrets.HEALTH_URL }}"
+            export RESET_WORKER_SWARM=true
             /opt/statuspulse/scripts/deploy-swarm.sh "$IMAGE"
 
       - name: Post Slack deployment notification

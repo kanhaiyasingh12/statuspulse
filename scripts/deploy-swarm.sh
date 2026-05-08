@@ -9,6 +9,7 @@ STACK_NAME="${STACK_NAME:-statuspulse}"
 HEALTH_URL="${HEALTH_URL:-https://${DOMAIN:-localhost}/health}"
 LOG_FILE="${DEPLOY_LOG_FILE:-/var/log/statuspulse-deploy.log}"
 DOCKER_BIN="${DOCKER_BIN:-docker}"
+RESET_WORKER_SWARM="${RESET_WORKER_SWARM:-false}"
 STACK_ENV_VARS=(
   STATUSPULSE_IMAGE
   DB_NAME
@@ -47,9 +48,22 @@ if [ -f "$ENV_FILE" ]; then
   previous_image="$(grep -E '^STATUSPULSE_IMAGE=' "$ENV_FILE" | cut -d= -f2- || true)"
 fi
 
-if ! $DOCKER_BIN info --format '{{.Swarm.LocalNodeState}}' | grep -q active; then
+swarm_state="$($DOCKER_BIN info --format '{{.Swarm.LocalNodeState}}')"
+swarm_manager="$($DOCKER_BIN info --format '{{.Swarm.ControlAvailable}}')"
+
+if [ "$swarm_state" != "active" ]; then
   log "Initializing single-node Docker Swarm"
   $DOCKER_BIN swarm init
+elif [ "$swarm_manager" != "true" ]; then
+  if [ "$RESET_WORKER_SWARM" = "true" ]; then
+    log "Docker is joined as a worker; reinitializing as a single-node Swarm manager"
+    $DOCKER_BIN swarm leave --force
+    $DOCKER_BIN swarm init
+  else
+    log "Docker Swarm is active, but this node is not a manager"
+    log "Set RESET_WORKER_SWARM=true to leave the worker swarm and initialize a single-node manager"
+    exit 1
+  fi
 fi
 
 wait_for_health() {
