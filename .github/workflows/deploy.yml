@@ -34,6 +34,10 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            APP_ENV=production
+            BUILD_VERSION=${{ github.run_number }}
+            BUILD_SHA=${{ github.sha }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
@@ -75,6 +79,29 @@ jobs:
             sudo cp -r /tmp/statuspulse-release/scripts/. /opt/statuspulse/scripts/
             sudo chmod +x /opt/statuspulse/scripts/*.sh
             sudo chown -R "${USER}:${USER}" /opt/statuspulse
+            cat > /tmp/statuspulse.env <<'EOF'
+            STATUSPULSE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            DB_HOST=postgres
+            DB_PORT=5432
+            DB_NAME=${{ secrets.DB_NAME || 'statuspulse' }}
+            DB_USER=${{ secrets.DB_USER || 'statuspulse' }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            REDIS_HOST=redis
+            REDIS_PORT=6379
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE || 'statuspulse' }}
+            MYSQL_USER=${{ secrets.MYSQL_USER || 'statuspulse' }}
+            MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+            MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+            APP_PORT=${{ secrets.APP_PORT || '8000' }}
+            DOMAIN=${{ secrets.STATUSPULSE_DOMAIN }}
+            ACME_EMAIL=${{ secrets.ACME_EMAIL }}
+            ALERT_WEBHOOK_URL=${{ secrets.ALERT_WEBHOOK_URL }}
+            SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
+            EOF
+            sed -i 's/^            //' /tmp/statuspulse.env
+            sudo install -o "${USER}" -g "${USER}" -m 0600 /tmp/statuspulse.env /opt/statuspulse/.env
+            rm -f /tmp/statuspulse.env
             if ! command -v docker >/dev/null 2>&1; then
               if ! command -v curl >/dev/null 2>&1; then
                 sudo apt-get update
@@ -91,10 +118,6 @@ jobs:
               export DOCKER_BIN="docker"
             else
               export DOCKER_BIN="sudo docker"
-            fi
-            if [ ! -f /opt/statuspulse/.env ]; then
-              echo "/opt/statuspulse/.env is missing. Run the Ansible workflow first so production variables are created."
-              exit 1
             fi
             export IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
             export HEALTH_URL="${{ secrets.HEALTH_URL }}"

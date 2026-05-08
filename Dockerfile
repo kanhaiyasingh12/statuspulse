@@ -15,9 +15,16 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 
 FROM python:3.12-slim AS runtime
 
+ARG APP_ENV=production
+ARG BUILD_VERSION=local
+ARG BUILD_SHA=unknown
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH=/home/statuspulse/.local/bin:$PATH
+    PATH=/home/statuspulse/.local/bin:$PATH \
+    APP_ENV=${APP_ENV} \
+    BUILD_VERSION=${BUILD_VERSION} \
+    BUILD_SHA=${BUILD_SHA}
 
 WORKDIR /app
 

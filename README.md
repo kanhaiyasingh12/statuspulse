@@ -35,6 +35,13 @@ make up
 make test
 ```
 
+Build-time environment values can be passed without baking runtime secrets into
+the image:
+
+```bash
+make build APP_ENV=production BUILD_VERSION=1.0.0 BUILD_SHA="$(git rev-parse --short HEAD)"
+```
+
 Useful commands:
 
 ```bash
@@ -91,11 +98,29 @@ It can also be run manually with `apply=true` to configure the server from GitHu
 Required GitHub Actions secrets:
 
 ```text
+GH_TOKEN
 DEPLOY_HOST
 DEPLOY_USER
 DEPLOY_SSH_KEY
 DEPLOY_PORT
 HEALTH_URL
+STATUSPULSE_DOMAIN
+ACME_EMAIL
+DB_PASSWORD
+MYSQL_PASSWORD
+MYSQL_ROOT_PASSWORD
+```
+
+Optional deploy secrets:
+
+```text
+DB_NAME
+DB_USER
+REDIS_PASSWORD
+MYSQL_DATABASE
+MYSQL_USER
+APP_PORT
+ALERT_WEBHOOK_URL
 SLACK_WEBHOOK_URL
 ```
 

@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        APP_ENV: ${APP_ENV:-development}
+        BUILD_VERSION: ${BUILD_VERSION:-local}
+        BUILD_SHA: ${BUILD_SHA:-local}
     image: statuspulse:local
     env_file:
       - .env

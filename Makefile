@@ -1,10 +1,17 @@
 IMAGE ?= statuspulse:local
 COMPOSE ?= docker compose
+APP_ENV ?= production
+BUILD_VERSION ?= local
+BUILD_SHA ?= local
 
 .PHONY: build up down logs test clean shell
 
 build:
-	docker build -t $(IMAGE) .
+	docker build \
+		--build-arg APP_ENV=$(APP_ENV) \
+		--build-arg BUILD_VERSION=$(BUILD_VERSION) \
+		--build-arg BUILD_SHA=$(BUILD_SHA) \
+		-t $(IMAGE) .
 
 up:
 	$(COMPOSE) up -d --build
