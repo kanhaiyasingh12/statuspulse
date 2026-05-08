@@ -24,7 +24,7 @@ variable "key_name" {
 variable "ssh_port" {
   description = "Custom SSH port configured by Ansible."
   type        = number
-  default     = 2222
+  default     = 22
 }
 
 variable "allowed_ssh_cidrs" {
