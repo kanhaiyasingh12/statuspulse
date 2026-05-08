@@ -9,6 +9,17 @@ STACK_NAME="${STACK_NAME:-statuspulse}"
 HEALTH_URL="${HEALTH_URL:-https://${DOMAIN:-localhost}/health}"
 LOG_FILE="${DEPLOY_LOG_FILE:-/var/log/statuspulse-deploy.log}"
 DOCKER_BIN="${DOCKER_BIN:-docker}"
+STACK_ENV_VARS=(
+  STATUSPULSE_IMAGE
+  DB_NAME
+  DB_USER
+  DB_PASSWORD
+  REDIS_PASSWORD
+  MYSQL_DATABASE
+  MYSQL_USER
+  MYSQL_PASSWORD
+  MYSQL_ROOT_PASSWORD
+)
 
 if ! touch "$LOG_FILE" >/dev/null 2>&1; then
   LOG_FILE="$APP_DIR/statuspulse-deploy.log"
@@ -53,6 +64,8 @@ wait_for_health() {
 
 deploy_image() {
   local image="$1"
+  local env_name
+  local env_args=()
   if grep -q '^STATUSPULSE_IMAGE=' "$ENV_FILE"; then
     sed -i "s|^STATUSPULSE_IMAGE=.*|STATUSPULSE_IMAGE=$image|" "$ENV_FILE"
   else
@@ -62,7 +75,14 @@ deploy_image() {
   set -a
   . "$ENV_FILE"
   set +a
-  $DOCKER_BIN stack deploy --with-registry-auth -c "$STACK_FILE" "$STACK_NAME"
+  if [ "${DOCKER_BIN%% *}" = "sudo" ]; then
+    for env_name in "${STACK_ENV_VARS[@]}"; do
+      env_args+=("${env_name}=${!env_name:-}")
+    done
+    sudo env "${env_args[@]}" docker stack deploy --with-registry-auth -c "$STACK_FILE" "$STACK_NAME"
+  else
+    $DOCKER_BIN stack deploy --with-registry-auth -c "$STACK_FILE" "$STACK_NAME"
+  fi
 }
 
 rollback() {
