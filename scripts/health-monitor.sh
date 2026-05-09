@@ -55,7 +55,7 @@ fi
 
 if command -v docker >/dev/null 2>&1; then
   for service in $EXPECTED_SERVICES; do
-    replicas="$(docker service ls --filter "name=$service" --format '{{.Replicas}}' 2>/dev/null | head -n 1 || true)"
+    replicas="$(sudo docker service ls --filter "name=$service" --format '{{.Replicas}}' 2>/dev/null | head -n 1 || true)"
     if [ -z "$replicas" ] || ! printf '%s' "$replicas" | awk -F/ '{exit !($1 == $2 && $2 > 0)}'; then
       alert "swarm service $service is not healthy: ${replicas:-missing}"
     else
