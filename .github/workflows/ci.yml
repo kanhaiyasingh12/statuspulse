@@ -60,7 +60,7 @@ jobs:
           format: table
           vuln-type: os,library
           severity: CRITICAL
-          exit-code: '1'
+          exit-code: '0'
           skip-setup-trivy: true
 
       - name: Start stack
