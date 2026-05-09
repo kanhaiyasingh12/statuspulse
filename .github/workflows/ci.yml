@@ -35,6 +35,34 @@ jobs:
       - name: Build image
         run: docker build -t statuspulse:${{ github.sha }} .
 
+      - name: Generate Trivy vulnerability report
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: statuspulse:${{ github.sha }}
+          format: json
+          output: trivy-report.json
+          vuln-type: os,library
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+
+      - name: Upload Trivy vulnerability report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-vulnerability-report
+          path: trivy-report.json
+          if-no-files-found: error
+
+      - name: Fail on critical vulnerabilities
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: statuspulse:${{ github.sha }}
+          format: table
+          vuln-type: os,library
+          severity: CRITICAL
+          exit-code: '1'
+          skip-setup-trivy: true
+
       - name: Start stack
         run: docker compose up -d
 
