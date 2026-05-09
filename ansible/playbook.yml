@@ -1,5 +1,5 @@
 - name: Configure StatusPulse server
-  hosts: 54.196.48.144
+  hosts: 3.215.18.13
   become: true
   vars_files:
     - vars.yml
