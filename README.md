@@ -14,7 +14,7 @@ flowchart LR
     Actions[GitHub Actions] --> GHCR[GitHub Container Registry]
     Terraform[Terraform] --> EC2[AWS EC2]
     Actions --> Server[Docker Swarm on EC2]
-    GoDaddy[GoDaddy DNS A record] --> Proxy
+    DuckDns[DuckDns DNS A record] --> Proxy
     Server --> Proxy
 ```
 
@@ -24,7 +24,7 @@ flowchart LR
 - GNU Make
 - curl
 - A public GitHub repository
-- For production: AWS account, EC2 key pair, GoDaddy domain, Slack webhook, and GitHub Actions secrets
+- For production: AWS account, EC2 key pair, DuckDns domain, Slack webhook, and GitHub Actions secrets
 
 ## Local Development
 
@@ -157,7 +157,7 @@ terraform init
 terraform apply -var="key_name=YOUR_AWS_KEYPAIR"
 ```
 
-2. In GoDaddy, create an `A` record pointing your domain or subdomain to the Terraform `server_public_ip` output.
+2. In DuckDns, create an `A` record pointing your domain or subdomain to the Terraform `server_public_ip` output.
 3. Wait for DNS propagation:
 
 ```bash
